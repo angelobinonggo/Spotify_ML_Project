@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Hit Predictor & ML Studio</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS (Sleek Spotify Dark Aesthetic with Glassmorphism) -->
+    <style>
+        :root {
+            --spotify-black: #121212;
+            --spotify-dark: #181818;
+            --spotify-card: #242424;
+            --spotify-hover: #2e2e2e;
+            --spotify-green: #1DB954;
+            --spotify-green-glow: #1ED760;
+            --text-white: #ffffff;
+            --text-muted: #b3b3b3;
+            --border-color: #3e3e3e;
+            --glow-color: rgba(29, 185, 84, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-color) var(--spotify-black);
+        }
+
+        body {
+            background-color: var(--spotify-black);
+            color: var(--text-white);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.4); }
+            70% { transform: scale(1.02); box-shadow: 0 0 20px 10px rgba(29, 185, 84, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Header styling */
+        header {
+            background-color: rgba(18, 18, 18, 0.8);
+            backdrop-filter: blur(15px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.25rem 2.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--text-white);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+
+        .header-logo svg {
+            fill: var(--spotify-green);
+            filter: drop-shadow(0 0 8px rgba(29, 185, 84, 0.5));
+            animation: float 4s ease-in-out infinite;
+        }
+
+        .header-logo span {
+            color: var(--spotify-green);
+        }
+
+        .status-badge {
+            background-color: var(--spotify-card);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            border-radius: 500px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #e22134; /* default disconnected red */
+        }
+
+        .status-dot.connected {
+            background-color: var(--spotify-green);
+            box-shadow: 0 0 8px var(--spotify-green);
+        }
+
+        /* Main Workspace */
+        main {
+            flex: 1;
+            padding: 2rem 2.5rem;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Dropzone overlay when CSV is not loaded */
+        #csv-upload-overlay {
+            grid-column: 1 / -1;
+            background-color: var(--spotify-dark);
+            border: 2px dashed var(--border-color);
+            border-radius: 16px;
+            padding: 5rem 2rem;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        #csv-upload-overlay:hover {
+            border-color: var(--spotify-green);
+            background-color: rgba(29, 185, 84, 0.02);
+            box-shadow: inset 0 0 40px rgba(29, 185, 84, 0.05);
+        }
+
+        #csv-upload-overlay svg {
+            fill: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        #csv-upload-overlay:hover svg {
+            fill: var(--spotify-green);
+            transform: scale(1.1);
+        }
+
+        .btn-upload {
+            background-color: var(--spotify-green);
+            color: var(--spotify-black);
+            padding: 0.85rem 2rem;
+            border-radius: 500px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 15px rgba(29, 185, 84, 0.3);
+        }
+
+        .btn-upload:hover {
+            background-color: var(--spotify-green-glow);
+            transform: scale(1.04);
+            box-shadow: 0 6px 20px rgba(29, 185, 84, 0.5);
+        }
+
+        /* Common Cards layout */
+        .card {
+            background-color: var(--spotify-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+        }
+
+        .card-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-white);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-title svg {
+            fill: var(--spotify-green);
+        }
+
+        /* Sidebar Control Panel */
+        .control-panel {
+            grid-column: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-select, .form-input {
+            background-color: var(--spotify-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-white);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            outline: none;
+            font-size: 0.95rem;
+            transition: border-color 0.2s ease;
+            width: 100%;
+        }
+
+        .form-select:focus, .form-input:focus {
+            border-color: var(--spotify-green);
+        }
+
+        /* Sliders styling */
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .slider-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--spotify-green);
+            min-width: 45px;
+            text-align: right;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: var(--spotify-card);
+            border-radius: 3px;
+            outline: none;
+            border: 1px solid var(--border-color);
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--spotify-green);
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.1s ease;
+            box-shadow: 0 0 8px rgba(29,185,84,0.5);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: var(--spotify-green-glow);
+            transform: scale(1.2);
+        }
+
+        .btn-train {
+            background-color: var(--spotify-green);
+            color: var(--spotify-black);
+            font-size: 1rem;
+            font-weight: 700;
+            padding: 0.9rem;
+            border: none;
+            border-radius: 500px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 15px rgba(29, 185, 84, 0.25);
+            margin-top: 0.5rem;
+        }
+
+        .btn-train:hover {
+            background-color: var(--spotify-green-glow);
+            transform: scale(1.02);
+            box-shadow: 0 6px 20px rgba(29, 185, 84, 0.4);
+        }
+
+        .btn-train:active {
+            transform: scale(0.99);
+        }
+
+        /* Dashboard content layout */
+        .dashboard-content {
+            grid-column: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* Dynamic Grid for stats/results */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+        }
+
+        .metric-card {
+            background-color: var(--spotify-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+
+        .metric-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: var(--spotify-green);
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.75px;
+        }
+
+        .metric-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.85rem;
+            font-weight: 800;
+            color: var(--text-white);
+        }
+
+        /* Tabs and charts container */
+        .workspace-tabs {
+            display: flex;
+            gap: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-white);
+        }
+
+        .tab-btn.active {
+            color: var(--spotify-green);
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -9px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: var(--spotify-green);
+            border-radius: 2px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .chart-box {
+            position: relative;
+            height: 320px;
+            width: 100%;
+        }
+
+        .analysis-section {
+            display: grid;
+            grid-template-columns: 1.3fr 1fr;
+            gap: 1.5rem;
+        }
+
+        /* Confusion Matrix CSS */
+        .cm-grid {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr;
+            grid-template-rows: 40px 1fr 1fr;
+            gap: 8px;
+            text-align: center;
+            align-items: center;
+            font-size: 0.9rem;
+            max-width: 320px;
+            margin: 0 auto;
+        }
+
+        .cm-header {
+            font-weight: 700;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .cm-label {
+            font-weight: 700;
+            color: var(--text-muted);
+            text-align: right;
+            padding-right: 10px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .cm-cell {
+            background-color: var(--spotify-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            height: 70px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-weight: 700;
+            font-size: 1.15rem;
+            transition: all 0.2s ease;
+        }
+
+        .cm-cell:hover {
+            transform: scale(1.04);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .cm-cell .cell-val {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.35rem;
+        }
+
+        .cm-cell .cell-desc {
+            font-size: 0.7rem;
+            font-weight: 400;
+            color: var(--text-muted);
+        }
+
+        .cm-cell.correct {
+            border-color: rgba(29, 185, 84, 0.4);
+            background-color: rgba(29, 185, 84, 0.08);
+            color: var(--spotify-green-glow);
+        }
+
+        .cm-cell.incorrect {
+            border-color: rgba(226, 33, 52, 0.4);
+            background-color: rgba(226, 33, 52, 0.08);
+            color: #ff4a5a;
+        }
+
+        /* Interactive Hit Predictor Tool */
+        .predictor-container {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 2rem;
+            background-color: var(--spotify-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .predictor-sliders {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            column-gap: 2rem;
+            row-gap: 1.25rem;
+        }
+
+        .predictor-result-card {
+            background-color: var(--spotify-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .predictor-result-card.hit-active {
+            border-color: var(--spotify-green);
+            box-shadow: 0 0 25px var(--glow-color), inset 0 0 15px rgba(29,185,84,0.1);
+        }
+
+        .badge-prediction {
+            padding: 0.65rem 1.5rem;
+            border-radius: 500px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .badge-prediction.hit {
+            background-color: var(--spotify-green);
+            color: var(--spotify-black);
+            animation: pulse 2s infinite;
+        }
+
+        .badge-prediction.clean {
+            background-color: #3e3e3e;
+            color: var(--text-muted);
+        }
+
+        .probability-meter {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 8px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .probability-meter.hit-active {
+            border-color: var(--spotify-green);
+        }
+
+        .probability-val {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.85rem;
+            font-weight: 800;
+            color: var(--text-white);
+        }
+
+        .probability-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        /* Toggle Switches */
+        .toggle-switch-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--spotify-card);
+            border: 1px solid var(--border-color);
+            transition: .3s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--text-muted);
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--spotify-green);
+            border-color: var(--spotify-green);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+            background-color: var(--spotify-black);
+        }
+
+        /* Training Console log */
+        .console-log {
+            background-color: #0b0b0b;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            color: #39ff14; /* matrix green */
+            height: 100px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        /* Hidden File Input */
+        #csv-file-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header navigation -->
+    <header>
+        <a href="#" class="header-logo">
+            <svg width="32" height="32" viewBox="0 0 24 24">
+                <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.894-.982-.336.076-.67-.135-.746-.472-.076-.336.135-.67.472-.746 3.847-.878 7.144-.505 9.82 1.134.295.18.387.565.208.86zm1.224-2.72c-.226.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.076-1.185-.412.125-.847-.107-.972-.52-.125-.413.107-.847.52-.972 3.666-1.112 8.232-.57 11.343 1.344.367.226.488.707.26 1.074zm.106-2.833C14.384 8.78 8.563 8.588 5.176 9.615c-.52.158-1.066-.143-1.224-.662-.158-.52.143-1.067.662-1.224 3.882-1.178 10.307-.954 14.388 1.468.468.278.621.884.343 1.352-.278.468-.884.621-1.352.343z"/>
+            </svg>
+            Spotify <span>ML Studio</span>
+        </a>
+        <div class="status-badge">
+            <div class="status-dot" id="status-indicator"></div>
+            <span id="status-text">Disconnected</span>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main>
+        
+        <!-- Drag & Drop Overlay (Visible when data not loaded) -->
+        <div id="csv-upload-overlay" onclick="document.getElementById('csv-file-input').click()">
+            <svg width="64" height="64" viewBox="0 0 24 24" class="mb-3">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+            </svg>
+            <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 700;">Upload Spotify Dataset to Start</h2>
+            <p style="color: var(--text-muted); max-width: 480px; font-size: 0.95rem; line-height: 1.5;">
+                Drag & drop <strong style="color: var(--text-white)">Spotify_Data.csv</strong> here, or click to browse files from your computer. The model will run 100% locally in your browser.
+            </p>
+            <button class="btn-upload">Browse File</button>
+            <input type="file" id="csv-file-input" accept=".csv">
+        </div>
+
+        <!-- Left Side Control Panel (Hidden initially, shown after load) -->
+        <div class="control-panel" id="sidebar-controls" style="display: none;">
+            
+            <!-- Model Settings Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2z"/></svg>
+                        Model Settings
+                    </h3>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="model-select">ML Classifier</label>
+                    <select class="form-select" id="model-select">
+                        <option value="logistic">Logistic Regression</option>
+                        <option value="tree">Decision Tree</option>
+                        <option value="knn">K-Nearest Neighbors</option>
+                        <option value="naive">Gaussian Naive Bayes</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="threshold-slider">Popularity Threshold</label>
+                    <div class="slider-container">
+                        <input type="range" id="threshold-slider" min="50" max="90" value="70">
+                        <span class="slider-value" id="threshold-val">70</span>
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.75rem;">Define what Popularity Score (> x) counts as a "Popular Hit".</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="split-slider">Test Set Split</label>
+                    <div class="slider-container">
+                        <input type="range" id="split-slider" min="10" max="50" step="5" value="20">
+                        <span class="slider-value" id="split-val">20%</span>
+                    </div>
+                </div>
+
+                <!-- Hyperparameter controls (Dynamic based on selected model) -->
+                <div id="hyperparams-container" style="border-top: 1px solid var(--border-color); padding-top: 1rem; display: flex; flex-direction: column; gap: 1.25rem;">
+                    
+                    <!-- Logistic Regression Params -->
+                    <div class="form-group model-hyperparam" id="param-logistic">
+                        <label class="form-label" for="learning-rate">Learning Rate</label>
+                        <select class="form-select" id="learning-rate">
+                            <option value="0.01">0.01 (Slow / Safe)</option>
+                            <option value="0.1" selected>0.1 (Recommended)</option>
+                            <option value="0.3">0.3 (Fast)</option>
+                        </select>
+                        <label class="form-label" for="epochs-input" style="margin-top: 0.75rem;">Epochs (Iterations)</label>
+                        <div class="slider-container">
+                            <input type="range" id="epochs-input" min="50" max="1000" step="50" value="200">
+                            <span class="slider-value" id="epochs-val">200</span>
+                        </div>
+                    </div>
+
+                    <!-- Decision Tree Params -->
+                    <div class="form-group model-hyperparam" id="param-tree" style="display: none;">
+                        <label class="form-label" for="max-depth">Max Tree Depth</label>
+                        <div class="slider-container">
+                            <input type="range" id="max-depth" min="2" max="15" value="5">
+                            <span class="slider-value" id="max-depth-val">5</span>
+                        </div>
+                    </div>
+
+                    <!-- KNN Params -->
+                    <div class="form-group model-hyperparam" id="param-knn" style="display: none;">
+                        <label class="form-label" for="k-neighbors">Neighbors (K)</label>
+                        <div class="slider-container">
+                            <input type="range" id="k-neighbors" min="1" max="21" step="2" value="5">
+                            <span class="slider-value" id="k-neighbors-val">5</span>
+                        </div>
+                    </div>
+
+                    <!-- Naive Bayes Params -->
+                    <div class="form-group model-hyperparam" id="param-naive" style="display: none;">
+                        <p style="color: var(--text-muted); font-size: 0.8rem; line-height: 1.4;">
+                            Gaussian Naive Bayes is a purely probabilistic algorithm and does not require hyperparameter configuration.
+                        </p>
+                    </div>
+                </div>
+
+                <button class="btn-train" id="btn-run-training">
+                    <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" fill="currentColor"/></svg>
+                    Train ML Model
+                </button>
+            </div>
+
+            <!-- Training Console log -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Training Logs</h3>
+                </div>
+                <div class="console-log" id="console-log">Ready to train. Load dataset to initialize the pipeline.</div>
+            </div>
+        </div>
+
+        <!-- Right Side Dashboard (Hidden initially, shown after load) -->
+        <div class="dashboard-content" id="main-dashboard" style="display: none;">
+            
+            <!-- Row 1: Metrics stats -->
+            <div class="stats-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Model Accuracy</div>
+                    <div class="metric-value" id="val-accuracy">0.00%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Precision (Hit)</div>
+                    <div class="metric-value" id="val-precision">0.00%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Recall (Hit)</div>
+                    <div class="metric-value" id="val-recall">0.00%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">F1-Score</div>
+                    <div class="metric-value" id="val-f1">0.00%</div>
+                </div>
+            </div>
+
+            <!-- Row 2: Tabs for EDA / Feature Importance -->
+            <div class="card">
+                <div class="workspace-tabs">
+                    <button class="tab-btn active" onclick="switchTab(event, 'tab-eda')">Exploratory Data Analysis</button>
+                    <button class="tab-btn" onclick="switchTab(event, 'tab-importance')">Feature Importance</button>
+                    <button class="tab-btn" onclick="switchTab(event, 'tab-scatter')">Acoustics Scatter plot</button>
+                </div>
+
+                <!-- Tab 1: EDA Charts -->
+                <div class="tab-content active" id="tab-eda">
+                    <div style="display: grid; grid-template-columns: 1fr 1.3fr; gap: 2rem; margin-top: 1rem;">
+                        <div>
+                            <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--text-muted); margin-bottom: 1rem;">Explicit Content Distribution</h4>
+                            <div class="chart-box">
+                                <canvas id="chart-explicit"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--text-muted); margin-bottom: 1rem;">Danceability Score Distribution</h4>
+                            <div class="chart-box">
+                                <canvas id="chart-danceability"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Feature Importance -->
+                <div class="tab-content" id="tab-importance">
+                    <div style="margin-top: 1rem;">
+                        <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--text-muted); margin-bottom: 1rem;">Relative Feature Weight Contribution</h4>
+                        <div class="chart-box" style="height: 320px;">
+                            <canvas id="chart-importance"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Acoustic Scatter Plot -->
+                <div class="tab-content" id="tab-scatter">
+                    <div style="margin-top: 1rem;">
+                        <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--text-muted); margin-bottom: 1rem;">Audio Energy vs Danceability (Colored by Hit Popularity)</h4>
+                        <div class="chart-box" style="height: 320px;">
+                            <canvas id="chart-scatter"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 3: Bottom grid for Confusion Matrix and Predictor tool -->
+            <div class="analysis-section">
+                
+                <!-- Confusion Matrix Card -->
+                <div class="card" style="justify-content: flex-start;">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 22C6.48 22 2 17.52 2 12S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10zm-1-6h2v2h-2v-2zm0-8h2v6h-2V8z"/></svg>
+                            Confusion Matrix
+                        </h3>
+                    </div>
+                    
+                    <p style="color: var(--text-muted); font-size: 0.8rem; line-height: 1.4; margin-bottom: 0.5rem;">
+                        Visualizes actual vs predicted classifications.
+                    </p>
+
+                    <div class="cm-grid">
+                        <div class="cm-header"></div>
+                        <div class="cm-header">Pred Clean</div>
+                        <div class="cm-header">Pred Hit</div>
+
+                        <div class="cm-label">Act Clean</div>
+                        <div class="cm-cell correct" id="cm-tn">
+                            <span class="cell-val">0</span>
+                            <span class="cell-desc">True Neg</span>
+                        </div>
+                        <div class="cm-cell incorrect" id="cm-fp">
+                            <span class="cell-val">0</span>
+                            <span class="cell-desc">False Pos</span>
+                        </div>
+
+                        <div class="cm-label">Act Hit</div>
+                        <div class="cm-cell incorrect" id="cm-fn">
+                            <span class="cell-val">0</span>
+                            <span class="cell-desc">False Neg</span>
+                        </div>
+                        <div class="cm-cell correct" id="cm-tp">
+                            <span class="cell-val">0</span>
+                            <span class="cell-desc">True Pos</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Song Hit Predictor Card -->
+                <div class="card" style="grid-column: span 1;">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                            Track Hit Predictor
+                        </h3>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.8rem; line-height: 1.4;">
+                        Slide the sliders to model custom music audio characteristics and run real-time predictions!
+                    </p>
+
+                    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                        <!-- Sliders -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            
+                            <div class="form-group">
+                                <label class="form-label" style="font-size:0.75rem;">Danceability</label>
+                                <div class="slider-container">
+                                    <input type="range" class="predict-slider" id="pred-danceability" min="0" max="1" step="0.05" value="0.75">
+                                    <span class="slider-value" id="pred-val-danceability" style="min-width:30px;">0.75</span>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" style="font-size:0.75rem;">Energy</label>
+                                <div class="slider-container">
+                                    <input type="range" class="predict-slider" id="pred-energy" min="0" max="1" step="0.05" value="0.8">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" style="font-size:0.75rem;">Acousticness</label>
+                                <div class="slider-container">
+                                    <input type="range" class="predict-slider" id="pred-acousticness" min="0" max="1" step="0.05" value="0.1">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" style="font-size:0.75rem;">Valence (Positivity)</label>
+                                <div class="slider-container">
+                                    <input type="range" class="predict-slider" id="pred-valence" min="0" max="1" step="0.05" value="0.85">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" style="font-size:0.75rem;">Loudness (dB)</label>
+                                <div class="slider-container">
+                                    <input type="range" class="predict-slider" id="pred-loudness" min="-25" max="-2" step="1" value="-5">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" style="font-size:0.75rem;">Tempo (BPM)</label>
+                                <div class="slider-container">
+                                    <input type="range" class="predict-slider" id="pred-tempo" min="60" max="200" step="5" value="120">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" style="font-size:0.75rem;">Speechiness</label>
+                                <div class="slider-container">
+                                    <input type="range" class="predict-slider" id="pred-speechiness" min="0" max="0.5" step="0.02" value="0.05">
+                                </div>
+                            </div>
+
+                            <div class="toggle-switch-container">
+                                <label class="form-label" style="font-size:0.75rem;">Explicit Content</label>
+                                <label class="switch">
+                                    <input type="checkbox" id="pred-explicit" class="predict-slider">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Result display badge -->
+                        <div class="predictor-result-card" id="pred-result-card">
+                            <div class="badge-prediction clean" id="pred-badge">🎵 Train Model first</div>
+                            
+                            <div style="display: flex; align-items: center; gap: 1.5rem; justify-content: center; width: 100%;">
+                                <div class="probability-meter" id="pred-prob-meter">
+                                    <span class="probability-val" id="pred-prob-val">0%</span>
+                                    <span class="probability-label">Hit Prob</span>
+                                </div>
+                                <div style="text-align: left;">
+                                    <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.25rem;" id="pred-title">Awaiting Train</h4>
+                                    <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.3;" id="pred-explanation">
+                                        Train the model using the button on the left to activate predictions.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Load ML Library first -->
+    <script src="ml_models.js"></script>
+    
+    <!-- Dashboard Core Logic -->
+    <script>
+        // --- DATA VARIABLES ---
+        let rawCSVData = null;
+        let X = [];
+        let y = [];
+        let featureNames = [];
+        let featureMins = [];
+        let featureMaxs = [];
+        let scaler = new MinMaxScaler();
+        
+        let X_train = [], X_test = [], y_train = [], y_test = [];
+        let trainedModel = null;
+        let isModelTrained = false;
+        
+        // Track visual chart objects
+        let chartExplicit = null;
+        let chartDanceability = null;
+        let chartImportance = null;
+        let chartScatter = null;
+
+        // --- DYNAMIC UI CONTROLS ---
+        
+        // Handle input values display updates
+        document.getElementById('threshold-slider').addEventListener('input', e => {
+            document.getElementById('threshold-val').textContent = e.target.value;
+        });
+        document.getElementById('split-slider').addEventListener('input', e => {
+            document.getElementById('split-val').textContent = e.target.value + '%';
+        });
+        document.getElementById('epochs-input').addEventListener('input', e => {
+            document.getElementById('epochs-val').textContent = e.target.value;
+        });
+        document.getElementById('max-depth').addEventListener('input', e => {
+            document.getElementById('max-depth-val').textContent = e.target.value;
+        });
+        document.getElementById('k-neighbors').addEventListener('input', e => {
+            document.getElementById('k-neighbors-val').textContent = e.target.value;
+        });
+
+        // Sync model hyperparameter forms based on model selection
+        document.getElementById('model-select').addEventListener('change', e => {
+            document.querySelectorAll('.model-hyperparam').forEach(el => el.style.display = 'none');
+            const model = e.target.value;
+            if (model === 'logistic') {
+                document.getElementById('param-logistic').style.display = 'block';
+            } else if (model === 'tree') {
+                document.getElementById('param-tree').style.display = 'block';
+            } else if (model === 'knn') {
+                document.getElementById('param-knn').style.display = 'block';
+            } else if (model === 'naive') {
+                document.getElementById('param-naive').style.display = 'block';
+            }
+        });
+
+        // Tab Switcher
+        function switchTab(evt, tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }
+
+        // Live Log print
+        function log(message) {
+            const consoleEl = document.getElementById('console-log');
+            consoleEl.innerHTML += `\n[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        // --- AUTOMATIC FETCH & DRAG-DROP LOADING ---
+
+        // Auto load CSV file from local path
+        window.addEventListener('DOMContentLoaded', () => {
+            log("Attempting to auto-load Spotify_Data.csv...");
+            fetch('Spotify_Data.csv')
+                .then(response => {
+                    if (!response.ok) throw new Error("CORS or File protocol restriction.");
+                    return response.text();
+                })
+                .then(text => {
+                    processCSVText(text);
+                    log("Dataset loaded successfully!");
+                })
+                .catch(err => {
+                    log("Auto-load blocked by browser CORS policy. Drag & drop Spotify_Data.csv to start!");
+                    console.log(err);
+                });
+        });
+
+        // Drag & Drop event handlers
+        const dropZone = document.getElementById('csv-upload-overlay');
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => {
+                e.preventDefault();
+                dropZone.style.borderColor = 'var(--spotify-green)';
+                dropZone.style.backgroundColor = 'rgba(29, 185, 84, 0.05)';
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => {
+                e.preventDefault();
+                dropZone.style.borderColor = 'var(--border-color)';
+                dropZone.style.backgroundColor = 'var(--spotify-dark)';
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', e => {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            if (file && file.name.endsWith('.csv')) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    processCSVText(evt.target.result);
+                };
+                reader.readAsText(file);
+            } else {
+                alert("Please drop a valid .csv file!");
+            }
+        });
+
+        // File Browser handler
+        document.getElementById('csv-file-input').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    processCSVText(evt.target.result);
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // --- DATA PROCESSING AND ML PIPELINE ---
+
+        function processCSVText(csvText) {
+            log("Parsing CSV lines...");
+            const rows = parseCSV(csvText);
+            
+            if (rows.length < 2) {
+                alert("Invalid or empty CSV dataset!");
+                return;
+            }
+
+            const header = rows[0];
+            log(`Found headers: ${header.join(', ')}`);
+
+            // Check required fields
+            const requiredFields = ['explicit', 'danceability', 'energy', 'valence', 'loudness', 'tempo', 'speechiness', 'popularity'];
+            for (const f of requiredFields) {
+                if (!header.includes(f)) {
+                    alert(`Missing required numeric feature in CSV: ${f}`);
+                    return;
+                }
+            }
+
+            // Exclude non-numeric fields
+            const artistIdx = header.indexOf('artist');
+            const songIdx = header.indexOf('song');
+            const genreIdx = header.indexOf('genre');
+            const popularityIdx = header.indexOf('popularity');
+
+            // Columns to extract as features
+            // Duration_ms, Explicit, Year, Danceability, Energy, Key, Loudness, Mode, Speechiness, Acousticness, Instrumentalness, Liveness, Valence, Tempo
+            // Pre-calculate label encoders for objects (like genre if included)
+            
+            rawCSVData = rows.slice(1).filter(r => r.length === header.length && r[popularityIdx] !== '');
+
+            // Set up variables
+            featureNames = header.filter((name, idx) => {
+                return name !== 'artist' && name !== 'song' && name !== 'genre' && name !== 'popularity';
+            });
+
+            log(`Model features: ${featureNames.join(', ')}`);
+
+            // Load Data
+            X = [];
+            let popularityScores = [];
+
+            // Extract genres unique values to encode them
+            const genres = [...new Set(rawCSVData.map(r => r[genreIdx]))];
+
+            rawCSVData.forEach(row => {
+                const rowFeatures = [];
+                header.forEach((colName, colIdx) => {
+                    if (colName !== 'artist' && colName !== 'song' && colName !== 'genre' && colName !== 'popularity') {
+                        let val = row[colIdx];
+                        if (val === 'True') val = 1;
+                        else if (val === 'False') val = 0;
+                        else val = parseFloat(val) || 0;
+                        rowFeatures.push(val);
+                    }
+                });
+                X.push(rowFeatures);
+                popularityScores.push(parseFloat(row[popularityIdx]) || 0);
+            });
+
+            // Store default ranges for predictor sliders
+            featureNames.forEach((name, idx) => {
+                const vals = X.map(row => row[idx]);
+                featureMins[idx] = Math.min(...vals);
+                featureMaxs[idx] = Math.max(...vals);
+            });
+
+            // Make raw popularity available globally
+            window.popularityScores = popularityScores;
+
+            // UI Transitions
+            document.getElementById('csv-upload-overlay').style.display = 'none';
+            document.getElementById('sidebar-controls').style.display = 'flex';
+            document.getElementById('main-dashboard').style.display = 'flex';
+            
+            // Set connection indicator
+            document.getElementById('status-indicator').classList.add('connected');
+            document.getElementById('status-text').textContent = "Spotify Dataset Active";
+
+            log(`Preprocessed ${X.length} Spotify tracks successfully.`);
+
+            // Plot EDA charts
+            plotEDACharts();
+
+            // Train default model
+            runMLPipeline();
+        }
+
+        // Trigger Model Training button
+        document.getElementById('btn-run-training').addEventListener('click', () => {
+            if (!rawCSVData) {
+                alert("Load dataset first!");
+                return;
+            }
+            runMLPipeline();
+        });
+
+        function runMLPipeline() {
+            log("Configuring Target Threshold...");
+            const threshold = parseInt(document.getElementById('threshold-slider').value);
+            
+            // Create Binary Popularity Label y based on slider threshold
+            y = window.popularityScores.map(score => score > threshold ? 1 : 0);
+
+            const positiveCount = y.filter(val => val === 1).length;
+            log(`Hits count: ${positiveCount} / ${y.length} (${(positiveCount/y.length*100).toFixed(1)}% popular)`);
+
+            // Split
+            const testSplit = parseInt(document.getElementById('split-slider').value) / 100;
+            log(`Splitting dataset: train=${((1-testSplit)*100).toFixed(0)}%, test=${(testSplit*100).toFixed(0)}%`);
+
+            const splitData = trainTestSplit(X, y, testSplit, 42);
+            X_train = splitData.X_train;
+            X_test = splitData.X_test;
+            y_train = splitData.y_train;
+            y_test = splitData.y_test;
+
+            // Fit MinMax Scaler on training set
+            log("Normalizing feature matrix scales...");
+            scaler.fit(X_train);
+            const X_train_scaled = scaler.transform(X_train);
+            const X_test_scaled = scaler.transform(X_test);
+
+            // Select Model
+            const modelType = document.getElementById('model-select').value;
+            
+            if (modelType === 'logistic') {
+                const lr = parseFloat(document.getElementById('learning-rate').value);
+                const epochs = parseInt(document.getElementById('epochs-input').value);
+                log(`Initializing Logistic Regression (learningRate=${lr}, epochs=${epochs})...`);
+                
+                trainedModel = new LogisticRegressionClassifier(lr, epochs);
+                
+                log("Executing Gradient Descent optimizations...");
+                trainedModel.fit(X_train_scaled, y_train, (epoch, cost) => {
+                    log(`Epoch ${epoch}/${epochs} - Loss: ${cost.toFixed(4)}`);
+                });
+                
+            } else if (modelType === 'tree') {
+                const depth = parseInt(document.getElementById('max-depth').value);
+                log(`Building Decision Tree Classifier (maxDepth=${depth})...`);
+                
+                trainedModel = new DecisionTreeClassifier(depth);
+                trainedModel.fit(X_train_scaled, y_train);
+                log("Tree binary division nodes created successfully.");
+
+            } else if (modelType === 'knn') {
+                const k = parseInt(document.getElementById('k-neighbors').value);
+                log(`Fitting K-Nearest Neighbors Classifier (K=${k})...`);
+                
+                trainedModel = new KNeighborsClassifier(k);
+                trainedModel.fit(X_train_scaled, y_train);
+                log("KNN distance arrays matched.");
+
+            } else if (modelType === 'naive') {
+                log("Fitting Gaussian Naive Bayes Classifier...");
+                
+                trainedModel = new GaussianNB();
+                trainedModel.fit(X_train_scaled, y_train);
+                log("Gaussian conditional variances calculated.");
+            }
+
+            // Predictions & Evaluation
+            log("Calculating classifier predictions on test set...");
+            const y_pred = trainedModel.predict(X_test_scaled);
+            const evaluation = ModelEvaluator.evaluate(y_test, y_pred);
+
+            // Display metrics
+            document.getElementById('val-accuracy').textContent = (evaluation.accuracy * 100).toFixed(2) + '%';
+            document.getElementById('val-precision').textContent = (evaluation.precision * 100).toFixed(2) + '%';
+            document.getElementById('val-recall').textContent = (evaluation.recall * 100).toFixed(2) + '%';
+            document.getElementById('val-f1').textContent = (evaluation.f1 * 100).toFixed(2) + '%';
+
+            log(`Evaluation Result - Accuracy: ${(evaluation.accuracy*100).toFixed(2)}%, F1: ${(evaluation.f1*100).toFixed(2)}%`);
+
+            // Display Confusion Matrix cells
+            const [ [tn, fp], [fn, tp] ] = evaluation.confusionMatrix;
+            document.querySelector('#cm-tn .cell-val').textContent = tn;
+            document.querySelector('#cm-fp .cell-val').textContent = fp;
+            document.querySelector('#cm-fn .cell-val').textContent = fn;
+            document.querySelector('#cm-tp .cell-val').textContent = tp;
+
+            // Plot Feature Importance
+            plotFeatureImportanceChart(modelType);
+
+            isModelTrained = true;
+            log("Model pipeline execution finalized.");
+
+            // Trigger prediction immediately on current sliders values
+            updateLivePrediction();
+        }
+
+        // --- INTERACTIVE SLIDERS HIT PREDICTION CONTROLS ---
+
+        // Register change listeners on all predictor sliders
+        document.querySelectorAll('.predict-slider').forEach(el => {
+            el.addEventListener('input', e => {
+                const valEl = document.getElementById(`pred-val-${e.target.id.replace('pred-', '')}`);
+                if (valEl) {
+                    valEl.textContent = e.target.value;
+                }
+                updateLivePrediction();
+            });
+            el.addEventListener('change', () => {
+                updateLivePrediction();
+            });
+        });
+
+        function updateLivePrediction() {
+            if (!isModelTrained) return;
+
+            // Gather values from slider inputs in the exact order of featureNames
+            const customSong = [];
+            featureNames.forEach(fName => {
+                let val = 0;
+                if (fName === 'explicit') {
+                    val = document.getElementById('pred-explicit').checked ? 1 : 0;
+                } else if (fName === 'mode') {
+                    // default mode major (1)
+                    val = 1; 
+                } else if (fName === 'key') {
+                    // default C (0)
+                    val = 0;
+                } else if (fName === 'duration_ms') {
+                    // default 200,000 ms
+                    val = 200000;
+                } else if (fName === 'year') {
+                    // default 2010
+                    val = 2010;
+                } else {
+                    const inputEl = document.getElementById(`pred-${fName}`);
+                    val = inputEl ? parseFloat(inputEl.value) : 0.5;
+                }
+                customSong.push(val);
+            });
+
+            // Scale custom song input using scaler fit on X_train
+            const customSongScaled = scaler.transformRow(customSong);
+
+            // Run Prediction
+            const prob = trainedModel.predictProbabilityRow(customSongScaled);
+            const isHit = prob >= 0.5;
+
+            // Render output visual styling
+            const card = document.getElementById('pred-result-card');
+            const badge = document.getElementById('pred-badge');
+            const probVal = document.getElementById('pred-prob-val');
+            const probMeter = document.getElementById('pred-prob-meter');
+            const predTitle = document.getElementById('pred-title');
+            const predExpl = document.getElementById('pred-explanation');
+
+            probVal.textContent = (prob * 100).toFixed(0) + '%';
+            
+            // Dynamic color gradient scaling on meter border
+            const intensity = Math.round(prob * 100);
+            probMeter.style.borderColor = isHit ? `rgba(29, 185, 84, ${prob})` : `rgba(226, 33, 52, ${1 - prob})`;
+
+            if (isHit) {
+                card.classList.add('hit-active');
+                badge.className = 'badge-prediction hit';
+                badge.innerHTML = '🔥 POPULAR HIT!';
+                predTitle.textContent = "High Hit Potential!";
+                predExpl.textContent = "This audio signature has high structural similarity to top charting songs on Spotify.";
+            } else {
+                card.classList.remove('hit-active');
+                badge.className = 'badge-prediction clean';
+                badge.innerHTML = '🎵 CLEAN TRACK';
+                predTitle.textContent = "Underground Vibe";
+                predExpl.textContent = "Features map to standard catalog releases, unlikely to secure massive top chart pop traction.";
+            }
+        }
+
+        // --- CHARTING FUNCTIONS (Using Chart.js with beautiful custom dark theme styling) ---
+
+        function plotEDACharts() {
+            // Destroy past charts if they exist
+            if (chartExplicit) chartExplicit.destroy();
+            if (chartDanceability) chartDanceability.destroy();
+            if (chartScatter) chartScatter.destroy();
+
+            // 1. Explicit Chart
+            const explicitColIdx = featureNames.indexOf('explicit');
+            let cleanCount = 0;
+            let explicitCount = 0;
+            
+            X.forEach(row => {
+                if (row[explicitColIdx] === 1) explicitCount++;
+                else cleanCount++;
+            });
+
+            const ctxExplicit = document.getElementById('chart-explicit').getContext('2d');
+            chartExplicit = new Chart(ctxExplicit, {
+                type: 'bar',
+                data: {
+                    labels: ['Clean Track', 'Explicit Track'],
+                    datasets: [{
+                        data: [cleanCount, explicitCount],
+                        backgroundColor: ['#242424', '#1DB954'],
+                        borderColor: '#535353',
+                        borderWidth: 1.5,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { grid: { color: '#333' }, ticks: { color: '#b3b3b3' } },
+                        x: { grid: { display: false }, ticks: { color: '#b3b3b3' } }
+                    }
+                }
+            });
+
+            // 2. Danceability Histogram
+            const danceColIdx = featureNames.indexOf('danceability');
+            const danceVals = X.map(row => row[danceColIdx]);
+            
+            // Create 10 bins
+            const bins = new Array(10).fill(0);
+            danceVals.forEach(val => {
+                const idx = Math.min(9, Math.floor(val * 10));
+                bins[idx]++;
+            });
+
+            const ctxDance = document.getElementById('chart-danceability').getContext('2d');
+            chartDanceability = new Chart(ctxDance, {
+                type: 'bar',
+                data: {
+                    labels: ['0.0-0.1', '0.1-0.2', '0.2-0.3', '0.3-0.4', '0.4-0.5', '0.5-0.6', '0.6-0.7', '0.7-0.8', '0.8-0.9', '0.9-1.0'],
+                    datasets: [{
+                        data: bins,
+                        backgroundColor: 'rgba(29, 185, 84, 0.85)',
+                        borderColor: '#1DB954',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { grid: { color: '#333' }, ticks: { color: '#b3b3b3' } },
+                        x: { grid: { display: false }, ticks: { color: '#b3b3b3', font: { size: 9 } } }
+                    }
+                }
+            });
+
+            // 3. Audio Energy vs Danceability Scatter Plot
+            const energyIdx = featureNames.indexOf('energy');
+            const danceIdx = featureNames.indexOf('danceability');
+            
+            // Take 300 points sample to keep drawing fast and clean
+            const scatterPointsHit = [];
+            const scatterPointsClean = [];
+            
+            const threshold = parseInt(document.getElementById('threshold-slider').value);
+
+            for (let i = 0; i < Math.min(X.length, 300); i++) {
+                const pt = { x: X[i][danceIdx], y: X[i][energyIdx] };
+                if (window.popularityScores[i] > threshold) {
+                    scatterPointsHit.push(pt);
+                } else {
+                    scatterPointsClean.push(pt);
+                }
+            }
+
+            const ctxScatter = document.getElementById('chart-scatter').getContext('2d');
+            chartScatter = new Chart(ctxScatter, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Hits',
+                            data: scatterPointsHit,
+                            backgroundColor: '#1DB954',
+                            pointRadius: 5,
+                            hoverRadius: 7
+                        },
+                        {
+                            label: 'Underground',
+                            data: scatterPointsClean,
+                            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                            pointRadius: 4,
+                            hoverRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#b3b3b3' } }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Danceability', color: '#b3b3b3' }, grid: { color: '#333' }, ticks: { color: '#b3b3b3' } },
+                        y: { title: { display: true, text: 'Energy', color: '#b3b3b3' }, grid: { color: '#333' }, ticks: { color: '#b3b3b3' } }
+                    }
+                }
+            });
+        }
+
+        function plotFeatureImportanceChart(modelType) {
+            if (chartImportance) chartImportance.destroy();
+
+            const importances = trainedModel.getFeatureImportances(featureNames.length);
+
+            // Zip and sort descending
+            const data = featureNames.map((name, idx) => {
+                return { name, score: importances[idx] };
+            }).sort((a, b) => b.score - a.score);
+
+            const labels = data.map(d => d.name);
+            const scores = data.map(d => d.score);
+
+            const ctxImportance = document.getElementById('chart-importance').getContext('2d');
+            chartImportance = new Chart(ctxImportance, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: scores,
+                        backgroundColor: '#1DB954',
+                        borderColor: '#1ED760',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', // horizontal bar chart
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { grid: { color: '#333' }, ticks: { color: '#b3b3b3' } },
+                        y: { grid: { display: false }, ticks: { color: '#b3b3b3' } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
